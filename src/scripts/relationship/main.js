@@ -131,6 +131,7 @@ const relationshipMain = {
             .data(caches.nodes)
             .enter()
             .append('text')
+            .attr('data-sourceindex', d => d.index)
             .classed('forceText', true)
             .attr('dx', '-1em')
             .attr('dy', '.4em')
@@ -184,18 +185,27 @@ const relationshipMain = {
         caches.deleteBtnEle.on('click', function() {
             //获取选中节点
             let index = d3.select(caches.currentSelectCircles[0]).attr('data-sourceindex');
-            //删除缓存节点
+
+            //删除节点缓存
             caches.nodes.forEach((ele, i) => ele.index == index ? caches.nodes.splice(i, 1) : ele);
             //删除视图上的节点
             d3.select(caches.currentSelectCircles[0]).remove();
-            //删除节点连线
+
+            //删除节点连线缓存
             caches.edges.map((ele, i) => ele.source.index == index || ele.target.index == index ? caches.edges.splice(i, 1) : null);
+            //删除视图上的节点连线
             caches.lineEles[0].map((ele, i) => {
                 if (d3.select(ele).attr('data-sourceindex') == index || d3.select(ele).attr('data-targetindex') == index) {
                     caches.lineEles[0][i].remove();
                 }
             });
-            //删除文字
+
+            //删除视图上的文字
+            caches.textEles[0].map((ele, i) => {
+                if (index == d3.select(ele).attr('data-sourceindex')) {
+                    caches.textEles[0][i].remove();
+                }
+            });
 
             //重新布局
             relationshipMain.createForceLayout(caches.nodes, caches.edges);
