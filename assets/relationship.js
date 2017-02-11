@@ -93,7 +93,42 @@
 	 */
 	var d3 = __webpack_require__(2);
 
-	var caches = {};
+	//节点类型静态变量
+	var _PERSON_TYPE = 'person',
+	    _RELATION_TYPE = 'relation';
+
+	var caches = {
+	    //节点数据
+	    nodes: [{ id: 67, name: 'James', type: _PERSON_TYPE }, { id: 55, name: 'Irvin', type: _PERSON_TYPE }, { id: 38, name: 'Love', type: _PERSON_TYPE }, { id: 44, name: '队友', type: _RELATION_TYPE }, { id: 11, name: '好友', type: _RELATION_TYPE }, { id: 97, name: '亲戚', type: _RELATION_TYPE }],
+	    //连线数据
+	    edges: [//从人物指向关系
+	    { source: 0, target: 3 }, { source: 1, target: 3 }, { source: 2, target: 3 }, { source: 1, target: 4 }, { source: 1, target: 5 }],
+	    //svg宽高
+	    svgWidth: 500,
+	    svgHeight: 500,
+	    //svg关系节点图层
+	    svgEle: null,
+	    //力布局
+	    forceLayout: null,
+	    //连线
+	    lineElesD3: null,
+	    //节点
+	    circleElesD3: null,
+	    circleEleD3Data: null,
+	    //节点上的文字
+	    textElesD3: null,
+	    //颜色生成器
+	    colorGenerator: null,
+	    //当前选中的节点
+	    currentSelectCircleEles: [],
+	    //刷子模型
+	    brushModel: null,
+	    //刷子分组节点
+	    brushGroupEleD3: null,
+	    //刷子比例尺
+	    brushXScale: null,
+	    brushYScale: null
+	};
 
 	var relationshipMain = {
 	    /**初始化*/
@@ -106,17 +141,367 @@
 
 	    /**初始化数据*/
 	    initData: function initData() {
-	        console.log('hello');
+	        console.log('load data');
 	    },
 
 	    /**初始化页面*/
-	    initPage: function initPage() {},
+	    initPage: function initPage() {
+	        //svg和布局
+	        this.createSvgEle();
+	        this.createForceLayout(caches.nodes, caches.edges);
+	        //处理刷子
+	        this.createBrushGroup();
+	        this.createBrushScale();
+	        this.buildBrushModel();
+	        this.renderBrush();
+	        //工具
+	        this.createColorGenerator();
+	        //关系图
+	        this.renderLines();
+	        this.renderCircles();
+	        this.renderText();
+	        //处理按钮
+	        this.addControlArea();
+	        this.addDeleteBtn();
+	        this.addMergeBtn();
+	    },
 
 	    /**初始化事件*/
-	    initEvent: function initEvent() {},
+	    initEvent: function initEvent() {
+	        //关系节点移动监听器
+	        this.tickEvent();
+	        //点击选中事件
+	        this.clickSingleCircleEvent();
+	        //删除按钮事件
+	        this.deleteRelationOrPersonEvent();
+	        //合并节点事件
+	        this.mergeRelationOrPersonEvent();
+	        //刷子开始移动事件
+	        this.addBrushStartEvent();
+	        //刷子移动事件
+	        this.addBrushEvent();
+	        //刷子结束事件
+	        this.addBrushEnd();
+	    },
 
 	    /**初始化组件*/
-	    initComponent: function initComponent() {}
+	    initComponent: function initComponent() {},
+
+	    /**创建svg*/
+	    createSvgEle: function createSvgEle() {
+	        caches.svgEle = d3.select('body').insert('svg', 'script').attr('width', caches.svgWidth).attr('height', caches.svgHeight).style({
+	            position: 'relative',
+	            border: '1px solid black'
+	        });
+	    },
+
+	    /**创建力布局*/
+	    createForceLayout: function createForceLayout(nodes, edges) {
+	        //力布局
+	        caches.forceLayout = d3.layout.force().nodes(nodes).links(edges).size([caches.svgWidth, caches.svgHeight]) //作用范围
+	        .linkDistance(90) //连线距离
+	        .charge(-400); //节点电荷数
+	        //开启力布局
+	        caches.forceLayout.start();
+	    },
+
+	    /**创建颜色生成器*/
+	    createColorGenerator: function createColorGenerator() {
+	        caches.colorGenerator = d3.scale.category20();
+	    },
+
+	    /**绘制连线*/
+	    renderLines: function renderLines() {
+	        caches.lineElesD3 = caches.svgEle.selectAll('.forceLine').data(caches.edges).enter().append('line').attr('data-sourceindex', function (d) {
+	            return d.source.index;
+	        }).attr('data-targetindex', function (d) {
+	            return d.target.index;
+	        }).classed('forceLine', true).style('stroke', '#ccc').style('stroke-width', 1);
+	    },
+
+	    /**绘制节点*/
+	    renderCircles: function renderCircles() {
+	        caches.circleEleD3Data = caches.svgEle.selectAll('.forceCircle').data(caches.nodes);
+
+	        caches.circleElesD3 = caches.circleEleD3Data.enter().append('circle').attr('data-index', function (d) {
+	            return d.index;
+	        }).attr('data-type', function (d) {
+	            return d.type;
+	        }).classed('forceCircle', true).attr('r', 20).style('fill', function (d, i) {
+	            return d.type == _PERSON_TYPE ? 'green' : 'yellow';
+	        }).style({ stroke: 'black', 'stroke-width': 2, position: 'absolute', 'z-index': 100 }).call(caches.forceLayout.drag); //允许拖动
+	    },
+
+	    /**绘制文字*/
+	    renderText: function renderText() {
+	        caches.textElesD3 = caches.svgEle.selectAll('.forceText').data(caches.nodes).enter().append('text').attr('data-index', function (d) {
+	            return d.index;
+	        }).classed('forceText', true).attr('dx', '-1em').attr('dy', '.4em').text(function (d) {
+	            return d.name;
+	        });
+	    },
+
+	    /**tick监听器:当节点运动的时候调用*/
+	    tickEvent: function tickEvent() {
+	        caches.forceLayout.on('tick', function () {
+	            //更新连线坐标
+	            caches.lineElesD3.attr('x1', function (d) {
+	                return d.source.x;
+	            }).attr('y1', function (d) {
+	                return d.source.y;
+	            }).attr('x2', function (d) {
+	                return d.target.x;
+	            }).attr('y2', function (d) {
+	                return d.target.y;
+	            });
+
+	            //更新节点坐标
+	            caches.circleElesD3.attr('cx', function (d) {
+	                return d.x;
+	            }).attr('cy', function (d) {
+	                return d.y;
+	            });
+
+	            //更新节点上文字的坐标
+	            caches.textElesD3.attr('x', function (d) {
+	                return d.x;
+	            }).attr('y', function (d) {
+	                return d.y;
+	            });
+	        });
+	    },
+
+	    /**拖拽节点事件*/
+	    dragCircleEvent: function dragCircleEvent() {
+	        var drag = d3.behavior.drag().on('dragstart', function () {
+	            return console.log('drag start');
+	        }).on('drag', function () {
+	            return console.log('drag');
+	        }).on('dragend', function (d) {
+	            d3.select(this).attr('cx', function () {
+	                return d.cx = d3.event.x;
+	            }).attr('cy', function () {
+	                return d.cy = d3.event.y;
+	            });
+	            console.log('drag end');
+	        });
+	        caches.circleElesD3.call(drag);
+	    },
+
+	    /**点击单个节点事件监听*/
+	    clickSingleCircleEvent: function clickSingleCircleEvent() {
+	        caches.circleElesD3.on('click', function (d, i) {
+	            //选中节点
+	            caches.circleElesD3.style('fill', function (d, i) {
+	                return d.type == _PERSON_TYPE ? 'green' : 'yellow';
+	            });
+	            d3.select(this).style('fill', 'blue');
+	            caches.currentSelectCircleEles = [];
+	            caches.currentSelectCircleEles.push(this);
+	        });
+	    },
+
+	    /**添加操作区*/
+	    addControlArea: function addControlArea() {
+	        caches.controlAreaEle = d3.select('body').insert('div', 'script').classed('control-area', true);
+	    },
+
+	    /**添加删除按钮*/
+	    addDeleteBtn: function addDeleteBtn() {
+	        caches.deleteBtnEleD3 = caches.controlAreaEle.append('button').text('delete').style({ 'margin-right': '10px' });
+	    },
+
+	    /**
+	     * 删除节点事件监听
+	     * 依赖：deleteBtnEle、 currentSelectCircleEles、nodes、edges、lineElesD3
+	     * */
+	    deleteRelationOrPersonEvent: function deleteRelationOrPersonEvent() {
+	        caches.deleteBtnEleD3.on('click', function () {
+	            //获取选中节点的index
+	            var selectedCircleEleIndexs = caches.currentSelectCircleEles.map(function (ele) {
+	                return ele.getAttribute('data-index');
+	            });
+
+	            //过滤掉不能被删除的circle节点(只能删除外围的节点)
+	            var lineEles = caches.lineElesD3[0];
+	            selectedCircleEleIndexs = selectedCircleEleIndexs.filter(function (index) {
+	                var linesAmount = 0,
+	                    //某节点身上的连线数量
+	                canRemove = true; //是否能够被删除
+	                for (var i = 0, len = lineEles.length; i < len; ++i) {
+	                    if (d3.select(lineEles[i]).attr('data-sourceindex') == index || d3.select(lineEles[i]).attr('data-targetindex') == index) {
+	                        ++linesAmount;
+	                    }
+	                    if (linesAmount > 1) {
+	                        canRemove = false;
+	                        break;
+	                    }
+	                }
+
+	                return canRemove;
+	            });
+
+	            //执行删除
+	            selectedCircleEleIndexs.map(function (index) {
+	                //删除节点缓存
+	                caches.nodes.forEach(function (ele, i) {
+	                    return ele.index == index ? caches.nodes.splice(i, 1) : ele;
+	                });
+	                //删除视图上的节点
+	                caches.currentSelectCircleEles.map(function (ele) {
+	                    if (ele.getAttribute('data-index') == index) d3.select(ele).remove();
+	                });
+	                //删除视图节点缓存
+	                caches.circleElesD3[0].map(function (ele, i) {
+	                    if (d3.select(ele).attr('data-index') == index) {
+	                        caches.circleElesD3[0].splice(i, 1);
+	                    }
+	                });
+
+	                //删除节点连线缓存数据
+	                caches.edges.map(function (ele, i) {
+	                    return ele.source.index == index || ele.target.index == index ? caches.edges.splice(i, 1) : null;
+	                });
+	                //删除视图上的节点连线
+	                var newLinesElesD3Arr = [];
+	                caches.lineElesD3[0].map(function (ele, i) {
+	                    if (d3.select(ele).attr('data-sourceindex') == index || d3.select(ele).attr('data-targetindex') == index) {
+	                        caches.lineElesD3[0][i].remove(); //在视图中删除，因没有存入新缓存，故在视图缓存节点中也删除
+	                    } else {
+	                        newLinesElesD3Arr.push(ele);
+	                    }
+	                });
+	                caches.lineElesD3[0] = newLinesElesD3Arr;
+
+	                //删除视图上的文字
+	                caches.textElesD3[0].map(function (ele, i) {
+	                    if (index == d3.select(ele).attr('data-index')) {
+	                        caches.textElesD3[0][i].remove();
+	                    }
+	                });
+	            });
+	        });
+	    },
+
+	    /**添加合并按钮*/
+	    addMergeBtn: function addMergeBtn() {
+	        caches.mergeBtnEleD3 = caches.controlAreaEle.append('button').text('merge').style({ 'margin-right': '10px' });
+	    },
+
+	    /**添加合并事件*/
+	    mergeRelationOrPersonEvent: function mergeRelationOrPersonEvent() {
+	        caches.mergeBtnEleD3.on('click', function () {
+	            var eles = caches.currentSelectCircleEles,
+	                len = eles.length;
+
+	            //至少两个节点
+	            if (len < 2) return;
+	            //只能合并最外围的点(只能有一条线在身上)
+	            var lineEles = caches.lineElesD3[0],
+	                lineElesLen = lineEles.length,
+	                satisfactoryLines = []; //节点身上的线
+	            for (var i = 0; i < len; ++i) {
+	                var circle = eles[i],
+	                    //节点
+	                linesAmount = 0; //节点身上的连线数量
+	                for (var j = 0; j < lineElesLen; ++j) {
+	                    var line = lineEles[j];
+	                    if (line.getAttribute('data-sourceindex') == circle.getAttribute('data-index') || line.getAttribute('data-targetindex') == circle.getAttribute('data-index')) {
+	                        ++linesAmount;
+	                        satisfactoryLines.push(line);
+	                    }
+	                    if (linesAmount > 1) return;
+	                }
+	            }
+	            //所合并的所有节点必须同属于某一个节点
+	            var satisfactoryLinesLen = satisfactoryLines.length;
+	            for (var _i = 0; _i < satisfactoryLinesLen - 1; ++_i) {
+	                for (var _j = _i + 1; _j < satisfactoryLinesLen; ++_j) {
+	                    if (!(satisfactoryLines[_i].getAttribute('data-targetindex') == satisfactoryLines[_j].getAttribute('data-targetindex') || satisfactoryLines[_i].getAttribute('data-sourceindex') == satisfactoryLines[_j].getAttribute('data-sourceindex'))) return;
+	                }
+	            }
+
+	            console.log('成功');
+
+	            //算出新节点的中心坐标
+
+	            //隐藏旧节点
+
+	            //隐藏旧节点的连线
+	        });
+	    },
+
+	    /**创建刷子分组节点*/
+	    createBrushGroup: function createBrushGroup() {
+	        caches.brushGroupEleD3 = caches.svgEle.append('g').classed('brush', true);
+	    },
+
+	    /**创建刷子比例尺*/
+	    createBrushScale: function createBrushScale() {
+	        //x轴比例尺
+	        caches.brushXScale = d3.scale.linear().domain([0, caches.svgWidth]).range([0, caches.svgWidth]);
+	        //y轴比例尺
+	        caches.brushYScale = d3.scale.linear().domain([0, caches.svgHeight]).range([0, caches.svgHeight]);
+	    },
+
+	    /**构建刷子模型*/
+	    buildBrushModel: function buildBrushModel() {
+	        caches.brushModel = d3.svg.brush().x(caches.brushXScale).y(caches.brushYScale).extent([[0, 0], [0, 0]]);
+	    },
+
+	    /**渲染刷子*/
+	    renderBrush: function renderBrush() {
+	        caches.brushGroupEleD3.call(caches.brushModel).selectAll('rect').style({ 'fill-opacity': .3 });
+	    },
+
+	    /**添加刷子出现时事件*/
+	    addBrushStartEvent: function addBrushStartEvent() {
+	        caches.brushModel.on('brushstart', function () {});
+	    },
+
+	    /**添加刷子移动事件*/
+	    addBrushEvent: function addBrushEvent() {
+	        caches.brushModel.on('brush', function () {
+	            var extent = caches.brushModel.extent(),
+	                xMin = extent[0][0],
+	                xMax = extent[1][0],
+	                yMin = extent[0][1],
+	                yMax = extent[1][1];
+	            //选中变红
+	            caches.circleElesD3.style('stroke', function (d) {
+	                return d.x >= xMin && d.x <= xMax && d.y >= yMin && d.y <= yMax ? 'red' : 'black';
+	            });
+
+	            //清空选中节点的缓存
+	            caches.currentSelectCircleEles = [];
+	            //选中后记录选中节点
+	            caches.circleElesD3.each(function (d, i) {
+	                //节点在框选范围内
+	                if (d.x >= xMin && d.x <= xMax && d.y >= yMin && d.y <= yMax) {
+	                    //节点不能重复选中
+	                    var currentSelectedEle = this,
+	                        exist = false;
+	                    for (var _i2 = 0, len = caches.currentSelectCircleEles.length; _i2 < len; ++_i2) {
+	                        if (currentSelectedEle.getAttribute('data-index') == caches.currentSelectCircleEles[_i2].getAttribute('data-index')) {
+	                            exist = true;
+	                            break;
+	                        }
+	                    }
+	                    if (!exist) caches.currentSelectCircleEles.push(currentSelectedEle);
+	                }
+	            });
+	        });
+	    },
+
+	    /**添加刷子结束事件*/
+	    addBrushEnd: function addBrushEnd() {
+	        caches.brushModel.on('brushend', function () {
+	            relationshipMain.buildBrushModel();
+	            relationshipMain.renderBrush();
+	            relationshipMain.addBrushEvent();
+	            relationshipMain.addBrushEnd();
+	        });
+	    }
 	};
 
 	exports.default = relationshipMain;
