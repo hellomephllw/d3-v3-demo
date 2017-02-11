@@ -29,7 +29,7 @@ const caches = {
     //svg宽高
     svgWidth: 500,
     svgHeight: 500,
-    //svg
+    //svg关系节点图层
     svgEle: null,
     //力布局
     forceLayout: null,
@@ -70,6 +70,11 @@ const relationshipMain = {
         //svg和布局
         this.createSvgEle();
         this.createForceLayout(caches.nodes, caches.edges);
+        //处理刷子
+        this.createBrushGroup();
+        this.createBrushScale();
+        this.buildBrushModel();
+        this.renderBrush();
         //工具
         this.createColorGenerator();
         //关系图
@@ -79,50 +84,24 @@ const relationshipMain = {
         //处理按钮
         this.addControlArea();
         this.addDeleteBtn();
-        //处理刷子
-        this.createBrushGroup();
-        this.createBrushScale();
-        this.buildBrushModel();
-        this.renderBrush();
     },
     /**初始化事件*/
     initEvent() {
         //关系节点移动监听器
         this.tickEventListener();
+        //拖拽节点
+        // this.dragCircleEvent();
         //点击选中事件
-        this.clickSingleCircleEventListener();
+        this.clickSingleCircleEvent();
         //删除按钮事件
-        this.deleteRelationOrPersonEventListener();
+        this.deleteRelationOrPersonEvent();
+
         this.addBrushStartEvent();
         //刷子移动事件
         this.addBrushEvent();
         //刷子结束事件
         this.addBrushEnd();
 
-        d3.behavior.drag()
-            .on('dragstart', function (d) {
-                d3.event.sourceEvent.stopPropagation();
-            });
-
-        // caches.svgEle.on('click', function() {
-        //     console.log('svg click');
-        // });
-        let triggerBrushPrepare = false,
-            beginTime = null;
-        caches.svgEle.on('mousedown', function() {
-            triggerBrushPrepare = true;
-            beginTime = new Date().getTime();
-        });
-        caches.svgEle.on('mouseup', function() {
-            // console.log(new Date().getTime() - beginTime < 200);
-            if (triggerBrushPrepare && (new Date().getTime() - beginTime < 200)) {
-                console.log('click click');
-                // console.log(d3.event.target);
-            }
-        });
-        caches.forceLayout.on('start', function() {
-            console.log('force drag start');
-        });
     },
     /**初始化组件*/
     initComponent() {
@@ -132,7 +111,10 @@ const relationshipMain = {
         caches.svgEle = d3.select('body').insert('svg', 'script')
             .attr('width', caches.svgWidth)
             .attr('height', caches.svgHeight)
-            .style({border: '1px solid black'});
+            .style({
+                position: 'relative',
+                border: '1px solid black'
+            });
     },
     /**创建力布局*/
     createForceLayout(nodes, edges) {
@@ -174,7 +156,7 @@ const relationshipMain = {
             .classed('forceCircle', true)
             .attr('r', 20)
             .style('fill', (d, i) => d.type == _PERSON_TYPE ? 'green' : 'yellow')
-            .style({stroke: 'black', 'stroke-width': 2})
+            .style({stroke: 'black', 'stroke-width': 2, position: 'absolute', 'z-index': 100})
             .call(caches.forceLayout.drag);//允许拖动
     },
     /**绘制文字*/
@@ -210,8 +192,21 @@ const relationshipMain = {
                 .attr('y', d => d.y);
         });
     },
+    /**拖拽节点事件*/
+    dragCircleEvent() {
+        let drag = d3.behavior.drag()
+            .on('dragstart', () => console.log('drag start'))
+            .on('drag', () => console.log('drag'))
+            .on('dragend', function(d) {
+                d3.select(this)
+                    .attr('cx', () => d.cx = d3.event.x)
+                    .attr('cy', () => d.cy = d3.event.y);
+                console.log('drag end')
+            });
+        caches.circleElesD3.call(drag);
+    },
     /**点击单个节点事件监听*/
-    clickSingleCircleEventListener() {
+    clickSingleCircleEvent() {
         caches.circleElesD3.on('click', function(d, i) {
             console.log('circle click');
             //选中节点
@@ -234,7 +229,7 @@ const relationshipMain = {
      * 删除节点事件监听
      * 依赖：deleteBtnEle、 currentSelectCircleEles、nodes、edges、lineElesD3
      * */
-    deleteRelationOrPersonEventListener() {
+    deleteRelationOrPersonEvent() {
         caches.deleteBtnEle.on('click', function() {
             //获取选中节点
             let index = d3.select(caches.currentSelectCircleEles[0]).attr('data-index');
@@ -333,6 +328,7 @@ const relationshipMain = {
                 d =>
                     d.x >= xMin && d.x <= xMax && d.y >= yMin && d.y <= yMax ?
                         'red' : 'black');
+
         });
     },
     /**添加刷子结束事件*/
