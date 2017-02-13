@@ -6,7 +6,9 @@ const d3 = require('d3');
 //节点类型静态变量
 const
     _PERSON_TYPE = 'person',
-    _RELATION_TYPE = 'relation';
+    _BIG_PERSON_TYPE = 'bigPerson',
+    _RELATION_TYPE = 'relation',
+    _BIG_RELATION_TYPE = 'bigRelation';
 
 const caches = {
     //节点数据
@@ -124,7 +126,7 @@ const relationshipMain = {
             .links(edges)
             .size([caches.svgWidth, caches.svgHeight])//作用范围
             .linkDistance(90)//连线距离
-            .charge(-400);//节点电荷数
+            .charge(-200);//节点电荷数
         //开启力布局
         caches.forceLayout.start();
     },
@@ -300,9 +302,12 @@ const relationshipMain = {
             let eles = caches.currentSelectCircleEles,
                 len = eles.length;
 
-            //至少两个节点
+            /**
+             * 判断是否满足合并条件
+             */
+            //1.至少两个节点
             if (len < 2) return ;
-            //只能合并最外围的点(只能有一条线在身上)
+            //2.只能合并最外围的点(只能有一条线在身上)
             let lineEles = caches.lineElesD3[0],
                 lineElesLen = lineEles.length,
                 satisfactoryLines = [];//节点身上的线
@@ -319,7 +324,7 @@ const relationshipMain = {
                     if (linesAmount > 1) return ;
                 }
             }
-            //所合并的所有节点必须同属于某一个节点
+            //3.所合并的所有节点必须同属于某一个节点
             let satisfactoryLinesLen = satisfactoryLines.length;
             for (let i = 0; i < satisfactoryLinesLen - 1; ++i) {
                 for (let j = i + 1; j < satisfactoryLinesLen; ++j) {
@@ -329,13 +334,92 @@ const relationshipMain = {
                 }
             }
 
-            console.log('成功');
+            /**
+             * 合并步骤
+             */
+            //1.算出新节点的中心坐标
+            //重排序
+            let temp;
+            for (let i = 0; i < len - 1; ++i) {
+                for (let j = 0; j < len - i - 1; ++j) {
+                    if (parseFloat(eles[j + 1].getAttribute('cx')) < parseFloat(eles[j].getAttribute('cx'))) {
+                        temp = eles[j + 1];
+                        eles[j + 1] = eles[j];
+                        eles[j] = temp;
+                    }
+                }
+            }
+            //获取圆心坐标
+            let centerX,//圆心坐标x
+                centerY;//圆形坐标y
+            if (len % 2 == 0) {
+                let outerFirst = eles[0],
+                    outerLast = eles[len - 1];
+                centerX = (parseFloat(outerFirst.getAttribute('cx')) + parseFloat(outerLast.getAttribute('cx'))) / 2;
+                centerY = (parseFloat(outerFirst.getAttribute('cy')) + parseFloat(outerLast.getAttribute('cy'))) / 2;
+            } else {
+                let index = Math.floor(len / 2) + 1;
+                centerX = eles[index].getAttribute('cx');
+                centerY = eles[index].getAttribute('cy');
+            }
 
-            //算出新节点的中心坐标
+            //2.生成新节点
+            let selectedSource,
+                target;
+            //确定选择的节点类型
+            let selectedType = eles[0].getAttribute('data-type');
+            //新增一个节点
+            caches.nodes.push({id: '188', name: '合并', type: selectedType == _PERSON_TYPE ? _BIG_PERSON_TYPE : _BIG_RELATION_TYPE});
+            //在视图中生成新的circle
+            let mergeCircleEleD3 = caches.svgEle.selectAll('.forceCircle')
+                .data(caches.nodes)
+                .enter()
+                .append('circle')
+                .attr('data-index', d => {selectedSource = d;return d.index})
+                .attr('data-type', d => d.type)
+                .classed('forceCircle', true)
+                .attr('r', 30)
+                .style('fill', (d, i) => d.type == _BIG_PERSON_TYPE ? 'green' : 'yellow')
+                .style({stroke: 'black', 'stroke-width': 2})
+                .call(caches.forceLayout.drag);//允许拖动
+            //把circle节点放入被tick事件监听的数组，让它在视图中移动
+            caches.circleElesD3[0].push(mergeCircleEleD3[0][mergeCircleEleD3[0].length - 1]);
 
-            //隐藏旧节点
+            //3.生成新节点的关系连线
+            if (selectedType == _PERSON_TYPE) {//合并的person节点
+                //通过任意一个被选中视图节点确定对应缓存节点
+                let index = eles[0].getAttribute('data-index');
+                //寻找该缓存节点对应的关系连线寻找被选中的person节点对应的上级relation节点
+                caches.lineElesD3.each((d, i) => {
+                    if (d.source.index == index) {
+                        target = d.target;
+                    }
+                });
+                //生成新的关系连线
+                caches.edges.push({source: selectedSource, target: target});
+            } else {//合并的relation节点
 
-            //隐藏旧节点的连线
+            }
+
+            //在视图绘制新的关系连线
+            let mergeCircleLineEleD3 = caches.svgEle.selectAll('.forceLine')
+                .data(caches.edges)
+                .enter()
+                .append('line')
+                .attr('data-sourceindex', d => d.source.index)
+                .attr('data-targetindex', d => d.target.index)
+                .classed('forceLine', true)
+                .style('stroke', '#ccc')
+                .style('stroke-width', 1);
+            //把连线节点放入被tick事件监听的数组，让它在视图中移动
+            caches.lineElesD3[0].push(mergeCircleLineEleD3[0][mergeCircleLineEleD3[0].length - 1]);
+
+            //力布局重新计算
+            caches.forceLayout.start();
+
+            //4.隐藏旧节点
+
+            //5.隐藏旧节点的连线
 
         });
     },
