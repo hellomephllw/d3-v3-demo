@@ -136,7 +136,9 @@ const relationshipMain = {
     },
     /**绘制连线*/
     renderLines() {
-        caches.lineElesD3 = caches.svgEle.selectAll('.forceLine')
+        caches.lineElesD3 = caches.svgEle.append('g')
+            .classed('line-group', true)
+            .selectAll('.forceLine')
             .data(caches.edges)
             .enter()
             .append('line')
@@ -148,7 +150,9 @@ const relationshipMain = {
     },
     /**绘制节点*/
     renderCircles() {
-        caches.circleEleD3Data = caches.svgEle.selectAll('.forceCircle')
+        caches.circleEleD3Data = caches.svgEle.append('g')
+            .classed('circle-group', true)
+            .selectAll('.forceCircle')
             .data(caches.nodes);
 
         caches.circleElesD3 = caches.circleEleD3Data
@@ -371,7 +375,8 @@ const relationshipMain = {
             //新增一个节点
             caches.nodes.push({id: '188', name: '合并', type: selectedType == _PERSON_TYPE ? _BIG_PERSON_TYPE : _BIG_RELATION_TYPE});
             //在视图中生成新的circle
-            let mergeCircleEleD3 = caches.svgEle.selectAll('.forceCircle')
+            let mergeCircleEleD3 = caches.svgEle.select('.circle-group')
+                .selectAll('.forceCircle')
                 .data(caches.nodes)
                 .enter()
                 .append('circle')
@@ -400,9 +405,9 @@ const relationshipMain = {
             } else {//合并的relation节点
 
             }
-
             //在视图绘制新的关系连线
-            let mergeCircleLineEleD3 = caches.svgEle.selectAll('.forceLine')
+            let mergeCircleLineEleD3 = caches.svgEle.select('.line-group')
+                .selectAll('.forceLine')
                 .data(caches.edges)
                 .enter()
                 .append('line')
@@ -418,6 +423,7 @@ const relationshipMain = {
             caches.forceLayout.start();
 
             //4.隐藏旧节点
+
 
             //5.隐藏旧节点的连线
 
