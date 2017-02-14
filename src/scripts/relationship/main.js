@@ -506,13 +506,21 @@ const relationshipMain = {
 
             //力布局重新计算
             caches.forceLayout = d3.layout.force()
-                .nodes(null)
-                .links(null)
+                .nodes(caches.nodes)
+                .links(caches.edges)
                 .size([caches.svgWidth, caches.svgHeight])//作用范围
                 .linkDistance(90)//连线距离
                 .charge(-200);//节点电荷数
 
             caches.forceLayout.start();
+            //关系图
+            // relationshipMain.renderLines();
+            // relationshipMain.renderCircles();
+            // relationshipMain.renderText();
+            // //关系节点移动监听器
+            // relationshipMain.tickEvent();
+            // //点击选中事件
+            // relationshipMain.clickSingleCircleEvent();
         });
     },
     /**创建刷子分组节点*/
