@@ -215,8 +215,15 @@ const relationshipMain = {
     /**点击单个节点事件监听*/
     clickSingleCircleEvent() {
         caches.circleElesD3.on('click', function(d, i) {
+            console.log('click click');
             //选中节点
-            caches.circleElesD3.style('fill', (d, i) => d.type == _PERSON_TYPE ? 'green' : 'yellow');
+            caches.circleElesD3.style('fill', (d, i) => {
+                let color;
+                if (d.type == _PERSON_TYPE || d.type == _BIG_PERSON_TYPE) color = 'green';
+                else color = 'yellow';
+
+                return color;
+            });
             d3.select(this).style('fill', 'blue');
             caches.currentSelectCircleEles = [];
             caches.currentSelectCircleEles.push(this);
@@ -369,11 +376,19 @@ const relationshipMain = {
 
             //2.生成新节点
             let selectedSource,
-                target;
+                target,
+                newCircleNode;
             //确定选择的节点类型
             let selectedType = eles[0].getAttribute('data-type');
             //新增一个节点
-            caches.nodes.push({id: '188', name: '合并', type: selectedType == _PERSON_TYPE ? _BIG_PERSON_TYPE : _BIG_RELATION_TYPE});
+            newCircleNode = {
+                id: Math.floor(Math.random() * 100),
+                name: '合并',
+                type: selectedType == _PERSON_TYPE ? _BIG_PERSON_TYPE : _BIG_RELATION_TYPE,
+                mergeNodes: [],
+                mergeEdge: []
+            };
+            caches.nodes.push(newCircleNode);
             //在视图中生成新的circle
             let mergeCircleEleD3 = caches.svgEle.select('.circle-group')
                 .selectAll('.forceCircle')
@@ -419,14 +434,85 @@ const relationshipMain = {
             //把连线节点放入被tick事件监听的数组，让它在视图中移动
             caches.lineElesD3[0].push(mergeCircleLineEleD3[0][mergeCircleLineEleD3[0].length - 1]);
 
+            //4.把需要隐藏的节点和连线存入新生成的大节点缓存
+            //获取被选中的节点缓存
+            let cacheNodes = caches.nodes,
+                nodesLength = cacheNodes.length;
+            for (let i = 0; i < len; ++i) {
+                for (let j = 0; j < nodesLength; ++j) {
+                    if (cacheNodes[j].index == eles[i].getAttribute('data-index')) {
+                        newCircleNode['mergeNodes'].push(cacheNodes[j]);
+                        break;
+                    }
+                }
+            }
+            //获取被选中节点的连线缓存(到目前为止，选中的都是符合合并规范的)
+            let cacheEdges = caches.edges,
+                edgesLength = cacheEdges.length;
+            for (let i = 0; i < len; ++i) {
+                for (let j = 0; j < edgesLength; ++j) {
+                    if (cacheEdges[j].target.index == eles[i].getAttribute('data-index') ||
+                        cacheEdges[j].source.index == eles[i].getAttribute('data-index')) {
+                        newCircleNode['mergeEdge'].push(cacheEdges[j]);
+                        break;
+                    }
+                }
+            }
+
+            //获取需要删除的节点索引
+            let selectedCircleEleIndexs = [];
+            for (let i = 0, len = newCircleNode['mergeNodes'].length; i < len; ++i) {
+                selectedCircleEleIndexs.push(newCircleNode['mergeNodes'][i].index);
+            }
+            //执行删除
+            selectedCircleEleIndexs.map(index => {
+                //5.删除旧节点
+                //删除节点缓存
+                caches.nodes.forEach((ele, i) => ele.index == index ? caches.nodes.splice(i, 1) : ele);
+                //删除视图上的节点
+                caches.currentSelectCircleEles.map(ele => {
+                    if (ele.getAttribute('data-index') == index)
+                        d3.select(ele).remove();
+                });
+                //删除视图节点缓存
+                caches.circleElesD3[0].map((ele, i) => {
+                    if (d3.select(ele).attr('data-index') == index) {
+                        caches.circleElesD3[0].splice(i , 1);
+                    }
+                });
+
+                //6.删除旧节点的连线
+                //删除节点连线缓存数据
+                caches.edges.map((ele, i) => ele.source.index == index || ele.target.index == index ? caches.edges.splice(i, 1) : null);
+                //删除视图上的节点连线
+                let newLinesElesD3Arr = [];
+                caches.lineElesD3[0].map((ele, i) => {
+                    if (d3.select(ele).attr('data-sourceindex') == index || d3.select(ele).attr('data-targetindex') == index) {
+                        caches.lineElesD3[0][i].remove();//在视图中删除，因没有存入新缓存，故在视图缓存节点中也删除
+                    } else {
+                        newLinesElesD3Arr.push(ele);
+                    }
+                });
+                caches.lineElesD3[0] = newLinesElesD3Arr;
+
+                //7.删除旧节点的文字
+                //删除视图上的文字
+                caches.textElesD3[0].map((ele, i) => {
+                    if (index == d3.select(ele).attr('data-index')) {
+                        caches.textElesD3[0][i].remove();
+                    }
+                });
+            });
+
             //力布局重新计算
+            caches.forceLayout = d3.layout.force()
+                .nodes(null)
+                .links(null)
+                .size([caches.svgWidth, caches.svgHeight])//作用范围
+                .linkDistance(90)//连线距离
+                .charge(-200);//节点电荷数
+
             caches.forceLayout.start();
-
-            //4.隐藏旧节点
-
-
-            //5.隐藏旧节点的连线
-
         });
     },
     /**创建刷子分组节点*/
