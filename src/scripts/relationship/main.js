@@ -407,7 +407,7 @@ const relationshipMain = {
 
             //3.生成新节点的关系连线
             if (selectedType == _PERSON_TYPE) {//合并的person节点
-                //通过任意一个被选中视图节点确定对应缓存节点
+                //通过任意一个被选中视图节点确定对应缓存节点索引
                 let index = eles[0].getAttribute('data-index');
                 //寻找该缓存节点对应的关系连线寻找被选中的person节点对应的上级relation节点
                 caches.lineElesD3.each((d, i) => {
@@ -418,7 +418,16 @@ const relationshipMain = {
                 //生成新的关系连线
                 caches.edges.push({source: selectedSource, target: target});
             } else {//合并的relation节点
-
+                //通过任意一个被选中视图节点确定对应缓存节点
+                let index = eles[0].getAttribute('data-index');
+                //寻找该缓存节点对应的关系连线寻找被选中的person节点对应的上级relation节点
+                caches.lineElesD3.each((d, i) => {
+                    if (d.target.index == index) {
+                        target = d.source;
+                    }
+                });
+                //生成新的关系连线
+                caches.edges.push({source: target, target: selectedSource});
             }
             //在视图绘制新的关系连线
             let mergeCircleLineEleD3 = caches.svgEle.select('.line-group')
@@ -505,22 +514,7 @@ const relationshipMain = {
             });
 
             //力布局重新计算
-            caches.forceLayout = d3.layout.force()
-                .nodes(caches.nodes)
-                .links(caches.edges)
-                .size([caches.svgWidth, caches.svgHeight])//作用范围
-                .linkDistance(90)//连线距离
-                .charge(-200);//节点电荷数
-
             caches.forceLayout.start();
-            //关系图
-            // relationshipMain.renderLines();
-            // relationshipMain.renderCircles();
-            // relationshipMain.renderText();
-            // //关系节点移动监听器
-            // relationshipMain.tickEvent();
-            // //点击选中事件
-            // relationshipMain.clickSingleCircleEvent();
         });
     },
     /**创建刷子分组节点*/
