@@ -1,7 +1,7 @@
 /**
  * Created by wb-llw259548 on 2017/2/6.
  */
-import relationshopMain from './main';
+import relationshipMain from './main';
 
 //页面js对象
 const relationship = {
@@ -19,7 +19,7 @@ const relationship = {
     },
     /**初始化组件*/
     initComponent() {
-        relationshopMain.init();
+        relationshipMain.init();
     }
 };
 
