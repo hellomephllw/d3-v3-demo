@@ -427,6 +427,7 @@ const relationshipMain = {
                     }
                 });
                 //生成新的关系连线
+                console.log(caches.lineElesD3);
                 caches.edges.push({source: target, target: selectedSource});
             }
             //在视图绘制新的关系连线
