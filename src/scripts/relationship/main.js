@@ -30,19 +30,19 @@ const caches = {
     ],
     //svg
     svgData: {
-        width: 500,
-        height: 500,
-        eleD3: null
+        width: 500,//svg宽
+        height: 500,//svg高
+        eleD3: null//svg节点
     },
     //力布局
     forceLayout: null,
     //连线缓存
     linkLine: {
-        groupEleD3: null,
-        groupClassName: 'line-group',
-        elesD3: null,
-        lineClassName: 'forceLine',
-        lineElesD3CacheDataPropName: '_linkLineCacheData'
+        groupEleD3: null,//连线group
+        groupClassName: 'line-group',//连线的group class
+        elesD3: null,//连线节点
+        lineClassName: 'forceLine',//连线class
+        lineElesD3CacheDataPropName: '_linkLineCacheData'//连线缓存属性名
     },
     //节点缓存
     circle: {
@@ -58,6 +58,22 @@ const caches = {
         groupClassName: 'text-group',
         elesD3: null,
         textClassName: 'forceText'
+    },
+    //刷子
+    brush: {
+        groupEleD3: null,//刷子group
+        xScale: null,//x轴比例尺
+        yScale: null,//y轴比例尺
+        model: null,//刷子模型
+        eleD3: null//刷子节点
+    },
+    //合并节点
+    mergeCircle: {
+        groupEleD3: null,
+        groupClassName: 'circle-group',
+        elesD3: [],
+        circleClassName: 'mergeForceCircle',
+
     }
 };
 
@@ -79,14 +95,24 @@ const relationshipMain = {
         this.createSvgEle();
         //创建力布局
         this.createForceLayout();
+        //创建刷子
+        this.createBrushGroup();
+        this.createBrushScale();
+        this.buildBrushModel();
+        this.renderBrush();
         //绘制关系图
         this.drawLines();
         this.drawCircles();
         this.drawText();
+        console.log(caches.nodes);
     },
     /**初始化事件*/
     initEvent() {
         this.tickEvent();
+        //注册刷子的事件监听器
+        this.addBrushStartEvent();
+        this.addBrushMoveEvent();
+        this.addBrushEndEvent();
     },
     /**初始化组件*/
     initComponent() {
@@ -238,6 +264,104 @@ const relationshipMain = {
             caches.text.elesD3
                 .attr('x', d => d.x)
                 .attr('y', d => d.y);
+        });
+    },
+    /**创建刷子group*/
+    createBrushGroup() {
+        //声明变量
+        let svgEle = caches.svgData.eleD3,
+            brushGroupEleD3;
+
+        //渲染
+        brushGroupEleD3 = svgEle.append('g')
+            .classed('brush', true);
+
+        //缓存变量
+        caches.brush.groupEleD3 = brushGroupEleD3;
+    },
+    /**创建刷子比例尺*/
+    createBrushScale() {
+        //初始化变量
+        let xScale,
+            yScale,
+            svgWidth = caches.svgData.width,
+            svgHeight = caches.svgData.height;
+
+        //x轴比例尺
+        xScale = d3.scale.linear()
+            .domain([0, svgWidth])
+            .range([0, svgWidth]);
+        //y轴比例尺
+        yScale = d3.scale.linear()
+            .domain([0, svgHeight])
+            .range([0, svgHeight]);
+
+        //缓存变量
+        caches.brush.xScale = xScale;
+        caches.brush.yScale = yScale;
+    },
+    /**构建刷子模型*/
+    buildBrushModel() {
+        //初始化变量
+        let xScale = caches.brush.xScale,
+            yScale = caches.brush.yScale,
+            brushModel;
+
+        //刷子模型
+        brushModel = d3.svg.brush()
+            .x(xScale)
+            .y(yScale)
+            .extent([[0, 0], [0, 0]]);
+
+        //缓存变量
+        caches.brush.model = brushModel;
+    },
+    /**渲染刷子*/
+    renderBrush() {
+        //声明变量
+        let brushModel = caches.brush.model,
+            brushGroupEleD3 = caches.brush.groupEleD3;
+
+        //渲染刷子
+        brushGroupEleD3.call(brushModel)
+            .selectAll('rect')
+            .style({'fill-opacity': .3});
+    },
+    /**刷子开始框选时事件*/
+    addBrushStartEvent() {
+        //声明变量
+        let brushModel = caches.brush.model;
+
+        //注册事件监听器
+        brushModel.on('brushstart', function() {
+
+        });
+    },
+    /**刷子移动时的事件*/
+    addBrushMoveEvent() {
+        //声明变量
+        let brushModel = caches.brush.model;
+
+        //注册事件监听器
+        brushModel.on('brush', function() {
+            let extent = caches.brushModel.extent(),
+                xMin = extent[0][0],
+                xMax = extent[1][0],
+                yMin = extent[0][1],
+                yMax = extent[1][1];
+        });
+    },
+    /**刷子框选结束时的事件*/
+    addBrushEndEvent() {
+        //声明变量
+        let brushModel = caches.brush.model;
+
+        //注册事件监听器
+        brushModel.on('brushend', function() {
+            relationshipMain.buildBrushModel();
+            relationshipMain.renderBrush();
+            relationshipMain.addBrushMoveEvent();
+            relationshipMain.addBrushEndEvent();
         });
     }
 };
