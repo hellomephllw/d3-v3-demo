@@ -6,9 +6,9 @@ const d3 = require('d3');
 //节点类型静态变量
 const
     _PERSON_TYPE = 'person',
-    _BIG_PERSON_TYPE = 'bigPerson',
+    _MERGE_PERSON_TYPE = 'mergePerson',
     _RELATION_TYPE = 'relation',
-    _BIG_RELATION_TYPE = 'bigRelation';
+    _MERGE_RELATION_TYPE = 'mergeRelation';
 
 const caches = {
     //节点数据
@@ -73,7 +73,16 @@ const caches = {
         groupClassName: 'circle-group',
         elesD3: [],
         circleClassName: 'mergeForceCircle',
-
+        circleElesD3CacheDataPropName: '_mergeCircleCacheData',
+        mergeCirclesCacheDataPropName: '_circleCacheData',
+        mergeLinesCacheDataPropName: '_linkLineCacheData'
+    },
+    //按钮
+    btn: {
+        controlAreaD3: null,
+        controlAreaClassName: 'control-area',
+        controlAreaId: 'controlArea',
+        mergeBtnEleD3: null
     }
 };
 
@@ -104,15 +113,20 @@ const relationshipMain = {
         this.drawLines();
         this.drawCircles();
         this.drawText();
-        console.log(caches.nodes);
+        //创建按钮
+        this.createControlArea();
+        this.createMergeBtn();
     },
     /**初始化事件*/
     initEvent() {
+        //tick事件监听器
         this.tickEvent();
         //注册刷子的事件监听器
         this.addBrushStartEvent();
         this.addBrushMoveEvent();
         this.addBrushEndEvent();
+        //合并节点事件监听器
+        this.mergeCircleEvent();
     },
     /**初始化组件*/
     initComponent() {
@@ -344,11 +358,38 @@ const relationshipMain = {
 
         //注册事件监听器
         brushModel.on('brush', function() {
-            let extent = caches.brushModel.extent(),
+            let extent = brushModel.extent(),
                 xMin = extent[0][0],
                 xMax = extent[1][0],
                 yMin = extent[0][1],
-                yMax = extent[1][1];
+                yMax = extent[1][1],
+                circleElesD3 = caches.circle.elesD3,
+                circleCacheDataPropName = caches.circle.circleElesD3CacheDataPropName;
+
+            /*选中变红*/
+            circleElesD3.style('stroke',
+                d =>
+                    d.x >= xMin && d.x <= xMax && d.y >= yMin && d.y <= yMax ?
+                        'red' : 'black');
+            /*框选节点*/
+            //清空选中节点的缓存
+            caches.currentSelectCircleEles = [];
+            //选中后记录选中节点
+            circleElesD3.each(function(d, i) {
+                //节点在框选范围内
+                if (d.x >= xMin && d.x <= xMax && d.y >= yMin && d.y <= yMax) {
+                    // //节点不能重复选中
+                    // let currentSelectedEle = this,
+                    //     exist = false;
+                    // for (let i = 0, len = caches.currentSelectCircleEles.length; i < len; ++i) {
+                    //     if (currentSelectedEle[circleCacheDataPropName] == caches.currentSelectCircleEles[i].getAttribute('data-index')) {
+                    //         exist = true;
+                    //         break;
+                    //     }
+                    // }
+                    // if (!exist) caches.currentSelectCircleEles.push(currentSelectedEle);
+                }
+            });
         });
     },
     /**刷子框选结束时的事件*/
@@ -363,6 +404,28 @@ const relationshipMain = {
             relationshipMain.addBrushMoveEvent();
             relationshipMain.addBrushEndEvent();
         });
+    },
+    /**创建操作区域*/
+    createControlArea() {
+        let controlAreaD3 = d3.select(document.body)
+            .insert('div', 'script')
+            .classed(caches.btn.controlAreaClassName, true);
+
+        caches.btn.controlAreaD3 = controlAreaD3;
+    },
+    /**创建合并按钮*/
+    createMergeBtn() {
+        let mergeBtnEleD3,
+            controlAreaD3 = caches.btn.controlAreaD3;
+
+        mergeBtnEleD3 = controlAreaD3.append('button')
+            .text('merge');
+
+        caches.btn.mergeBtnEleD3 = mergeBtnEleD3;
+    },
+    /**合并节点*/
+    mergeCircleEvent() {
+
     }
 };
 
