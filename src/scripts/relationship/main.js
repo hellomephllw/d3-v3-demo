@@ -67,6 +67,8 @@ const caches = {
         model: null,//刷子模型
         eleD3: null//刷子节点
     },
+    //当前被选中的节点
+    currentSelectCircleElesD3: [],
     //合并节点
     mergeCircle: {
         groupEleD3: null,
@@ -373,21 +375,23 @@ const relationshipMain = {
                         'red' : 'black');
             /*框选节点*/
             //清空选中节点的缓存
-            caches.currentSelectCircleEles = [];
+            caches.currentSelectCircleElesD3 = [];
             //选中后记录选中节点
             circleElesD3.each(function(d, i) {
                 //节点在框选范围内
                 if (d.x >= xMin && d.x <= xMax && d.y >= yMin && d.y <= yMax) {
-                    // //节点不能重复选中
-                    // let currentSelectedEle = this,
-                    //     exist = false;
-                    // for (let i = 0, len = caches.currentSelectCircleEles.length; i < len; ++i) {
-                    //     if (currentSelectedEle[circleCacheDataPropName] == caches.currentSelectCircleEles[i].getAttribute('data-index')) {
-                    //         exist = true;
-                    //         break;
-                    //     }
-                    // }
-                    // if (!exist) caches.currentSelectCircleEles.push(currentSelectedEle);
+                    //节点不能重复选中
+                    let currentSelectedEleD3 = d3.select(this),
+                        currentSelectCircleElesD3 = caches.currentSelectCircleElesD3,
+                        exist = false;
+                    for (let i = 0, len = currentSelectCircleElesD3.length; i < len; ++i) {
+                        if (currentSelectCircleElesD3[i][0][0][circleCacheDataPropName].id == currentSelectedEleD3[0][0][circleCacheDataPropName].id) {
+                            exist = true;
+                            break;
+                        }
+                    }
+                    //缓存被选中节点
+                    if (!exist) currentSelectCircleElesD3.push(currentSelectedEleD3);
                 }
             });
         });
@@ -425,7 +429,68 @@ const relationshipMain = {
     },
     /**合并节点*/
     mergeCircleEvent() {
+        let mergeCircleBtn = caches.btn.mergeBtnEleD3,
+            circleElesD3CacheDataPropName = caches.circle.circleElesD3CacheDataPropName,
+            lineElesD3CacheDataPropName = caches.linkLine.lineElesD3CacheDataPropName;
 
+        mergeCircleBtn.on('click', () => {
+            let currentSelectedCircleElesD3 = caches.currentSelectCircleElesD3,
+                lengthOfCurrentSelectedCircleElesD3 = currentSelectedCircleElesD3.length;
+
+            /**
+             * 判断是否满足合并条件
+             */
+            //1.至少两个节点
+            if (lengthOfCurrentSelectedCircleElesD3 < 2) return ;
+
+            //2.只能合并最外围的点(只能有一条线在身上)
+            let existLinkLineElesD3 = caches.linkLine.elesD3,
+                lengthOfExistLinkLineElesD3 = existLinkLineElesD3[0].length,
+                linkLineOnCircleElesD3 = [];
+            for (let i = 0; i < lengthOfCurrentSelectedCircleElesD3; ++i) {//所有选中节点
+                let circleEleD3 = currentSelectedCircleElesD3[i],
+                    linkLinesAmount = 0;
+                for (let j = 0; j < lengthOfExistLinkLineElesD3; ++j) {//所有连线
+                    let lineEleD3 = d3.select(existLinkLineElesD3[0][j]);
+                    if (circleEleD3[0][0][circleElesD3CacheDataPropName].id == lineEleD3[0][0][lineElesD3CacheDataPropName].source.id ||
+                        circleEleD3[0][0][circleElesD3CacheDataPropName].id == lineEleD3[0][0][lineElesD3CacheDataPropName].target.id) {
+                        ++linkLinesAmount;
+                        linkLineOnCircleElesD3.push(lineEleD3);
+                    }
+                    if (linkLinesAmount > 1) return ;
+                }
+            }
+
+            //3.所合并的所有节点必须同属于某一个节点
+            let lengthOfLinkLineOnCircleElesD3 = linkLineOnCircleElesD3.length;
+            for (let i = 0; i < lengthOfLinkLineOnCircleElesD3 - 1; ++i) {
+                for (let j = i + 1; j < lengthOfLinkLineOnCircleElesD3; ++j) {
+                    if (!(linkLineOnCircleElesD3[i][0][0][lineElesD3CacheDataPropName].source.id == linkLineOnCircleElesD3[j][0][0][lineElesD3CacheDataPropName].source.id ||
+                        linkLineOnCircleElesD3[i][0][0][lineElesD3CacheDataPropName].target.id == linkLineOnCircleElesD3[j][0][0][lineElesD3CacheDataPropName].target.id))
+                        return ;
+                }
+            }
+            console.log('success');
+
+            /**
+             * 合并步骤
+             */
+            //1.算出新节点的中心坐标
+            //重排序
+
+            //2.生成新节点
+
+            //3.生成新节点的关系连线
+
+            //4.把需要隐藏的节点和连线存入新生成的大节点缓存
+
+            //5.删除旧节点
+
+            //6.删除旧节点的连线
+
+            //7.删除旧节点的文字
+
+        });
     }
 };
 
